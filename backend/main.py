@@ -1,6 +1,5 @@
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
-
 import requests
 import os
 import base64
@@ -19,11 +18,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load API Key from environment variable; if not found, prompt the user
+# Load API Key from environment variable; if not found, raise an exception
 API_KEY = os.getenv("MESHY_API_KEY")
 if not API_KEY:
-    print("Warning: API Key not found. Please set MESHY_API_KEY environment variable.")
-    API_KEY = input("Enter your API key: ")
+    raise Exception("MESHY_API_KEY environment variable is required.")
 
 # Define request headers for the Meshy API
 HEADERS = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
@@ -51,7 +49,7 @@ async def upload_file(file: UploadFile = File(...), username: str = Form("guest"
         file_bytes = await file.read()
         image_data_uri = image_to_data_uri(file_bytes)
         
-        # Build the payload (using enable_pbr=False as per second code)
+        # Build the payload
         payload = {
             "image_url": image_data_uri,
             "enable_pbr": False,
