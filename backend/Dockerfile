@@ -11,11 +11,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Create an entrypoint script to use the PORT env variable
+# Create an entrypoint script that uses the PORT environment variable
 RUN echo '#!/bin/sh\nuvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}' > /app/entrypoint.sh \
     && chmod +x /app/entrypoint.sh
 
-# Expose port (Cloud Run will set PORT; default is 8080)
+# Expose the expected port
 EXPOSE 8080
 
 # Run the entrypoint script
