@@ -25,7 +25,7 @@ COPY start.sh /start.sh
 RUN chmod +x /start.sh
 
 # Expose port 8080 for Nginx (public)
-EXPOSE 8080
+EXPOSE 8082
 
 # Run the startup script that launches Uvicorn and Nginx
 CMD ["/start.sh"]
