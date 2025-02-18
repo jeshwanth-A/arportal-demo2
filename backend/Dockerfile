@@ -1,18 +1,22 @@
-# Use an official Python runtime as the base image
+# Use a slim Python image
 FROM python:3.10-slim
 
-# Set the working directory inside the container
+# Set working directory
 WORKDIR /app
 
-# Copy dependency file and install packages
+# Copy and install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application
+# Copy application code
 COPY . .
 
-# Expose the port (uvicorn default)
-EXPOSE 8000
+# Create an entrypoint script to use the PORT env variable
+RUN echo '#!/bin/sh\nuvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}' > /app/entrypoint.sh \
+    && chmod +x /app/entrypoint.sh
 
-# Run the FastAPI app using uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Expose port (Cloud Run will set PORT; default is 8080)
+EXPOSE 8080
+
+# Run the entrypoint script
+CMD ["/app/entrypoint.sh"]
