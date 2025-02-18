@@ -1,21 +1,31 @@
-# Use an official Python runtime as a parent image
 FROM python:3.9-slim
 
-# Set the working directory in the container
+# Install Nginx and necessary packages
+RUN apt-get update && apt-get install -y nginx && rm -rf /var/lib/apt/lists/*
+
+# Remove default Nginx config and add our custom config
+RUN rm /etc/nginx/conf.d/default.conf
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Set working directory
 WORKDIR /app
 
-# Copy the requirements file and install dependencies
+# Copy and install Python dependencies
 COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# Copy the rest of the application code to the container
+# Copy application code (.py files, .env, etc.)
 COPY . .
 
-# Create the directory for saving 3D models
+# Create directory for storing 3D models
 RUN mkdir -p /app/models
 
-# Expose the port on which the app will run
-EXPOSE 8008
+# Copy the startup script and grant execution rights
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
 
-# Command to run the FastAPI app with uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8008"]
+# Expose port 8080 for Nginx (public)
+EXPOSE 8080
+
+# Run the startup script that launches Uvicorn and Nginx
+CMD ["/start.sh"]
