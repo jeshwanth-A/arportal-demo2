@@ -1,4 +1,6 @@
 from fastapi import FastAPI, File, UploadFile, Form
+from fastapi.middleware.cors import CORSMiddleware
+
 import requests
 import os
 import base64
@@ -10,7 +12,12 @@ load_dotenv()
 
 # Define FastAPI app
 app = FastAPI()
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # Load API Key from environment variable; if not found, prompt the user
 API_KEY = os.getenv("MESHY_API_KEY")
 if not API_KEY:
@@ -21,7 +28,7 @@ if not API_KEY:
 HEADERS = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
 
 # Set the custom directory where the downloaded 3D model will be saved
-SAVE_DIR = "/Users/apple/Downloads/3D_Models"  # Change as needed for your OS
+SAVE_DIR = "/app/models"  # Change as needed for your OS
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 @app.get("/")
