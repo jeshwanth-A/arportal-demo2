@@ -15,7 +15,7 @@ COPY . .
 RUN mkdir -p /app/models
 
 # Expose the port on which the app will run
-EXPOSE 8000
+EXPOSE 8008
 
 # Command to run the FastAPI app with uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8008"]
