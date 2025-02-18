@@ -18,6 +18,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 # Load API Key from environment variable; if not found, prompt the user
 API_KEY = os.getenv("MESHY_API_KEY")
 if not API_KEY:
@@ -67,7 +68,7 @@ async def upload_file(file: UploadFile = File(...), username: str = Form("guest"
         
         # Poll for task completion
         while True:
-            time.sleep(30)  # Wait 10 seconds before checking status again
+            time.sleep(30)  # Wait 30 seconds before checking status again
             task_response = requests.get(f"https://api.meshy.ai/openapi/v1/image-to-3d/{task_id}", headers=HEADERS)
             task_status = task_response.json()
             status = task_status.get("status")
@@ -99,3 +100,8 @@ async def upload_file(file: UploadFile = File(...), username: str = Form("guest"
     except Exception as e:
         print("Error processing file:", str(e))
         return {"error": "Internal Server Error", "details": str(e)}
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8080))
+    uvicorn.run(app, host="0.0.0.0", port=port)
