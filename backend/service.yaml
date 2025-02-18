@@ -1,0 +1,16 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: my-backend
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+        - image: gcr.io/project-2-450420/my-backend
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+      timeoutSeconds: 300  # Increase health check timeout to 300 seconds
