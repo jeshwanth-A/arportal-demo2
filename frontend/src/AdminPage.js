@@ -5,7 +5,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState([]);
   const [error, setError] = useState("");
 
-  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8007";
+  const BACKEND_URL = "https://arportaldemo2backend-686596926199.us-central1.run.app";
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -13,6 +13,7 @@ export default function AdminPage() {
         const response = await axios.get(`${BACKEND_URL}/all-users`);
         setUsers(Object.entries(response.data.users)); // Convert object to array
       } catch (err) {
+        console.error("❌ Fetch Users Error:", err.response || err.message);
         setError("Failed to fetch users.");
       }
     };
@@ -39,7 +40,7 @@ export default function AdminPage() {
             users.map(([username, data], index) => (
               <tr key={index}>
                 <td>{username}</td>
-                <td>{data.password}</td> {/* Displays the password */}
+                <td>{data.password}</td>
               </tr>
             ))
           )}
