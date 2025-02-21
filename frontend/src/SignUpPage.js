@@ -14,7 +14,7 @@ export default function SignUpPage() {
     setMessage("");
 
     try {
-      // ✅ Use URLSearchParams to format data correctly for FastAPI
+      // ✅ Ensure correct format for FastAPI (Form Data, not JSON)
       const formData = new URLSearchParams();
       formData.append("username", username);
       formData.append("password", password);
@@ -25,6 +25,7 @@ export default function SignUpPage() {
 
       setMessage(response.data.message);
     } catch (err) {
+      console.error("Signup Error:", err.response);
       setError(err.response?.data?.detail || "Signup failed. Try again.");
     }
   };
