@@ -117,6 +117,13 @@ def get_my_models(current_user_id: int = Depends(get_current_user_id)):
         "models": models_db.get(current_user_id, [])
     }
 
+@app.get("/all-users")
+def get_all_users():
+    """
+    Fetch all registered users.
+    WARNING: This exposes passwords in plain text! Only use this for testing.
+    """
+    return {"users": users_db}
 ###############################
 #      3D UPLOAD ENDPOINT     #
 ###############################
