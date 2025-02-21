@@ -3,103 +3,61 @@ import axios from "axios";
 
 export default function UploadPage() {
   const [file, setFile] = useState(null);
-  const [username, setUsername] = useState("guest");
   const [modelUrl, setModelUrl] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
 
-  // Get backend URL from environment variables
-  const backendUrl = process.env.REACT_APP_API_URL || "http://localhost:8003";
+  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8007";
 
-  const handleUpload = async (e) => {
-    e.preventDefault();
-    setError("");
-    setModelUrl("");
-    
+  const handleUpload = async () => {
     if (!file) {
-      setError("Please select an image file");
+      alert("Please select an image");
       return;
     }
 
-    setIsLoading(true);
-    
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("username", username);
+    const formData = new FormData();
+    formData.append("file", file);
 
-      const response = await axios.post(`${backendUrl}/upload`, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
+    try {
+      setLoading(true);
+      setProgress(10);
+
+      console.log(`📤 Uploading file to: ${BACKEND_URL}/upload`);
+
+      const response = await axios.post(`${BACKEND_URL}/upload`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+        onUploadProgress: (progressEvent) => {
+          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setProgress(percent);
         },
       });
 
-      if (response.data.error) {
-        setError(response.data.error);
+      console.log("✅ Upload response:", response.data);
+
+      if (response.data.download_url) {
+        setModelUrl(response.data.download_url);
+        setProgress(100);
+        setLoading(false);
+        console.log("🎉 3D Model Ready:", response.data.download_url);
       } else {
-        setModelUrl(response.data.model_file);
+        alert("Upload successful, but no model file found in response.");
+        setLoading(false);
       }
     } catch (error) {
-      console.error("Upload failed:", error);
-      setError(error.response?.data?.details || "Failed to upload file");
-    } finally {
-      setIsLoading(false);
+      console.error("❌ Upload failed:", error);
+      alert("Upload failed. Check browser console for details.");
+      setLoading(false);
     }
   };
 
   return (
     <div className="upload-container">
-      <h2>Generate 3D Model from Image..</h2>
-      <form onSubmit={handleUpload}>
-        <div className="form-group">
-          <label htmlFor="username">Username:</label>
-          <input
-            type="text"
-            id="username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="Enter your username"
-          />
-        </div>
+      <h2>Upload an Image to Generate a 3D Model</h2>
+      <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files[0])} />
+      <button onClick={handleUpload} disabled={loading}>{loading ? "Processing..." : "Upload"}</button>
 
-        <div className="form-group">
-          <label htmlFor="file-upload">Select Image:</label>
-          <input
-            id="file-upload"
-            type="file"
-            accept="image/*"
-            onChange={(e) => setFile(e.target.files[0])}
-          />
-        </div>
-
-        <button 
-          type="submit" 
-          disabled={isLoading}
-          className={isLoading ? "loading" : ""}
-        >
-          {isLoading ? "Processing..." : "Generate 3D Model"}
-        </button>
-      </form>
-
-      {error && <div className="error-message">{error}</div>}
-
-      {modelUrl && (
-        <div className="result-container">
-          <h3>3D Model Generated Successfully!</h3>
-          <div className="download-section">
-            <p>Your model is ready for download:</p>
-            <a
-              href={modelUrl}
-              download
-              className="download-link"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Download GLB File
-            </a>
-          </div>
-        </div>
-      )}
+      {loading && <p>Generating 3D Model...</p>}
+      {modelUrl && <p>✅ <a href={modelUrl} target="_blank" rel="noopener noreferrer">Download Here</a></p>}
     </div>
   );
 }

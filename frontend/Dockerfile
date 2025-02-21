@@ -1,16 +1,20 @@
-# Stage 1: Build
-FROM node:18-alpine as build
+# Use official Node.js image
+FROM node:18
 
+# Set working directory
 WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-RUN npm run build
 
-# Stage 2: Serve
-FROM nginx:alpine
-COPY --from=build /app/build /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy project files
+COPY . /app
 
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+# Install dependencies and build React
+RUN npm install && npm run build
+
+# Install a lightweight web server
+RUN npm install -g serve
+
+# Expose the correct port for Cloud Run
+EXPOSE 8080
+
+# Serve the built React app on port 8080
+CMD ["serve", "-s", "build", "-l", "8080"]
