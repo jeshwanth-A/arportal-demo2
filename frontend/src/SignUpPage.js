@@ -7,7 +7,7 @@ export default function SignUpPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  const BACKEND_URL = "https://your-backend-url.cloud.run"; // Ensure correct backend URL
+  const BACKEND_URL = "https://arportaldemo2backend-686596926199.us-central1.run.app"; // Ensure correct backend URL
 
   const handleSignUp = async () => {
     setError("");
