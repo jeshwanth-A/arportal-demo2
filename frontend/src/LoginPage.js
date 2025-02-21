@@ -15,7 +15,7 @@ export default function LoginPage({ onSuccessLogin }) {
     setError("");
 
     if (!username || !password) {
-      setError("Username and password are required.");
+      setError("Username and password are required..");
       return;
     }
 
