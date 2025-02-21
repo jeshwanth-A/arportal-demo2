@@ -37,7 +37,7 @@ export default function LoginPage({ onSuccessLogin }) {
       // Notify App.js that login is successful
       onSuccessLogin();
 
-      // Redirect to upload page
+      // Redirect to Upload Page
       navigate("/upload");
     } catch (err) {
       console.error("❌ Login Error:", err.response || err.message);
