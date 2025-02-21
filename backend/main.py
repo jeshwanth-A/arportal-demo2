@@ -10,15 +10,18 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
-load_dotenv()  # Load environment variables from .env if present
+# Load environment variables from .env file if present
+load_dotenv()
 
 ###############################
-#   ENV VARIABLES & SETTINGS  #
+#   Environment Variables     #
 ###############################
+# Meshy API key for 3D model generation (required)
 MESHY_API_KEY = os.getenv("MESHY_API_KEY")
 if not MESHY_API_KEY:
     raise Exception("MESHY_API_KEY environment variable is required.")
 
+# Secret key for JWT token signing (default is insecure for demo purposes)
 SECRET_KEY = os.getenv("SECRET_KEY", "INSECURE_DEMO_KEY")
 
 # Directory to save 3D models
@@ -26,33 +29,41 @@ SAVE_DIR = "models"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 ###############################
-#   FASTAPI INITIALIZATION    #
+#   FastAPI Initialization    #
 ###############################
 app = FastAPI()
+
+# Add CORS middleware for cross-origin requests (for testing purposes)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for testing (change in production)
+    allow_origins=["*"],  # Change to specific origins in production
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Headers for Meshy API requests
 MESHY_HEADERS = {"Authorization": f"Bearer {MESHY_API_KEY}", "Content-Type": "application/json"}
 
 ###############################
-#   FAKE "DATABASE" STORAGE   #
+#   In-Memory "Database"      #
 ###############################
-users_db = {}  # {username: {"password": str, "user_id": int}}
-models_db = {}  # {user_id: [model_paths]}
+# Stores user data (username, password, user_id) - use a real database in production
+users_db = {}
+
+# Stores user models (user_id -> list of model paths)
+models_db = {}
 
 def get_next_user_id() -> int:
+    """Generate the next user ID."""
     return len(users_db) + 1
 
 ###############################
-#   JWT UTILS & AUTH SCHEME   #
+#   JWT Utilities & Auth      #
 ###############################
 auth_scheme = HTTPBearer()
 
 def create_access_token(user_id: int, expires_in_hours: int = 24) -> str:
+    """Create a JWT token for the given user ID."""
     payload = {
         "user_id": user_id,
         "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=expires_in_hours)
@@ -60,6 +71,7 @@ def create_access_token(user_id: int, expires_in_hours: int = 24) -> str:
     return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
 
 def decode_access_token(token: str) -> Optional[int]:
+    """Decode and validate a JWT token, returning the user ID."""
     try:
         decoded = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
         return decoded.get("user_id")
@@ -69,14 +81,15 @@ def decode_access_token(token: str) -> Optional[int]:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(auth_scheme)) -> int:
-    token = credentials.credentials  # Extract token string
+    """Extract and validate the user ID from the JWT token."""
+    token = credentials.credentials
     user_id = decode_access_token(token)
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid or missing token")
     return user_id
 
 ###############################
-#   AUTHENTICATION ENDPOINTS  #
+#   Authentication Endpoints  #
 ###############################
 @app.post("/register")
 def register(username: str = Form(...), password: str = Form(...)):
@@ -98,7 +111,7 @@ def register(username: str = Form(...), password: str = Form(...)):
 @app.post("/login")
 def login(username: str = Form(...), password: str = Form(...)):
     """
-    Validate user credentials, then return a JWT.
+    Validate user credentials and return a JWT token.
     """
     user_record = users_db.get(username)
     if not user_record or user_record["password"] != password:
@@ -108,10 +121,11 @@ def login(username: str = Form(...), password: str = Form(...)):
     return {"token": token}
 
 ###############################
-#    LIST USER'S 3D MODELS    #
+#   Model Management          #
 ###############################
 @app.get("/my-models")
 def get_my_models(current_user_id: int = Depends(get_current_user_id)):
+    """Return the list of models for the authenticated user."""
     return {
         "user_id": current_user_id,
         "models": models_db.get(current_user_id, [])
@@ -121,19 +135,21 @@ def get_my_models(current_user_id: int = Depends(get_current_user_id)):
 def get_all_users():
     """
     Fetch all registered users.
-    WARNING: This exposes passwords in plain text! Only use this for testing.
+    WARNING: This exposes passwords in plain text! Only use for testing.
     """
     return {"users": users_db}
+
 ###############################
-#      3D UPLOAD ENDPOINT     #
+#   3D Model Upload Endpoint  #
 ###############################
 @app.post("/upload")
 async def upload_file(
     file: UploadFile = File(...),
-    current_user_id: int = Depends(get_current_user_id)  # ✅ Protects Upload with Authentication
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
-    Upload an image, convert it to 3D via Meshy, then download & save GLB locally.
+    Upload an image, convert it to 3D via Meshy API, and save the GLB file locally.
+    Requires authentication.
     """
     file_bytes = await file.read()
     image_data_uri = image_to_data_uri(file_bytes)
@@ -145,6 +161,7 @@ async def upload_file(
         "should_texture": True
     }
 
+    # Submit task to Meshy API
     try:
         response = requests.post("https://api.meshy.ai/openapi/v1/image-to-3d",
                                  json=payload, headers=MESHY_HEADERS)
@@ -156,6 +173,7 @@ async def upload_file(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Meshy API call failed: {str(e)}")
 
+    # Poll task status until completion
     while True:
         time.sleep(30)
         task_response = requests.get(f"https://api.meshy.ai/openapi/v1/image-to-3d/{task_id}",
@@ -171,6 +189,7 @@ async def upload_file(
             base_filename = os.path.splitext(file.filename)[0]
             output_filename = os.path.join(SAVE_DIR, f"{base_filename}_{int(time.time())}.glb")
 
+            # Download and save the GLB file
             try:
                 glb_response = requests.get(glb_url, stream=True)
                 glb_response.raise_for_status()
@@ -180,6 +199,7 @@ async def upload_file(
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Failed to download GLB: {str(e)}")
 
+            # Store the model path for the user
             if current_user_id not in models_db:
                 models_db[current_user_id] = []
             models_db[current_user_id].append(output_filename)
@@ -190,14 +210,16 @@ async def upload_file(
             raise HTTPException(status_code=500, detail=f"Meshy task {status_}")
 
 ###############################
-#   UTILITY FUNCTIONS         #
+#   Utility Functions         #
 ###############################
 def image_to_data_uri(image_bytes: bytes) -> str:
+    """Convert image bytes to a data URI for Meshy API."""
     base64_data = base64.b64encode(image_bytes).decode("utf-8")
     return f"data:image/jpeg;base64,{base64_data}"
 
 @app.get("/")
 def home():
+    """Root endpoint to check if the API is running."""
     return {"message": "FastAPI with Auth + Meshy 3D Integration running!"}
 
 # Run the app locally
