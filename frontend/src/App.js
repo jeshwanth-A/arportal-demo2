@@ -4,18 +4,18 @@ import SignUpPage from "./SignUpPage";
 import LoginPage from "./LoginPage";
 import UploadPage from "./UploadPage";
 import AdminPage from "./AdminPage";
+import "./App.css"; // Import the styles
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    // Get login state from localStorage
     const token = localStorage.getItem("authToken");
     const adminStatus = localStorage.getItem("isAdmin") === "true";
 
-    setIsLoggedIn(!!token); // If token exists, user is logged in
-    setIsAdmin(adminStatus); // If isAdmin = true, user is admin
+    setIsLoggedIn(!!token);
+    setIsAdmin(adminStatus);
   }, []);
 
   const handleSuccessfulLogin = () => {
@@ -33,23 +33,23 @@ function App() {
   return (
     <Router>
       <div>
-        <h1>3D Model Upload Portal</h1>
-
         <nav>
           {!isLoggedIn && <Link to="/signup">Sign Up</Link>}
           {!isLoggedIn && <Link to="/login">Login</Link>}
           {isLoggedIn && <Link to="/upload">Upload</Link>}
-          {isAdmin && <Link to="/admin">Admin Panel</Link>} {/* Only admin sees this */}
+          {isAdmin && <Link to="/admin">Admin Panel</Link>}
           {isLoggedIn && <button onClick={handleLogout}>Logout</button>}
         </nav>
 
-        <Routes>
-          <Route path="/signup" element={<SignUpPage />} />
-          <Route path="/login" element={<LoginPage onSuccessLogin={handleSuccessfulLogin} />} />
-          <Route path="/upload" element={isLoggedIn ? <UploadPage /> : <Navigate to="/login" />} />
-          <Route path="/admin" element={isAdmin ? <AdminPage /> : <Navigate to="/" />} />
-          <Route path="/" element={<div>Welcome! Please sign up or log in.</div>} />
-        </Routes>
+        <div className="container">
+          <Routes>
+            <Route path="/signup" element={<SignUpPage />} />
+            <Route path="/login" element={<LoginPage onSuccessLogin={handleSuccessfulLogin} />} />
+            <Route path="/upload" element={isLoggedIn ? <UploadPage /> : <Navigate to="/login" />} />
+            <Route path="/admin" element={isAdmin ? <AdminPage /> : <Navigate to="/" />} />
+            <Route path="/" element={<div>Welcome! Please sign up or log in.</div>} />
+          </Routes>
+        </div>
       </div>
     </Router>
   );

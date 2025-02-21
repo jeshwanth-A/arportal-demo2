@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import "./App.css"; // Import the styles
 
 export default function LoginPage({ onSuccessLogin }) {
   const [username, setUsername] = useState("");
@@ -18,8 +19,6 @@ export default function LoginPage({ onSuccessLogin }) {
       return;
     }
 
-    console.log("📤 Sending login request to:", `${BACKEND_URL}/login`);
-
     try {
       const formData = new URLSearchParams();
       formData.append("username", username);
@@ -29,50 +28,25 @@ export default function LoginPage({ onSuccessLogin }) {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
       });
 
-      console.log("✅ Login successful:", response.data);
-
-      // Save token and admin status to localStorage
       localStorage.setItem("authToken", response.data.token);
       localStorage.setItem("isAdmin", response.data.is_admin ? "true" : "false");
-
-      // Notify App.js that login is successful
       onSuccessLogin();
-
-      // Redirect to Upload Page
       navigate("/upload");
     } catch (err) {
-      console.error("❌ Login Error:", err.response || err.message);
       setError(err.response?.data?.detail || "Login failed. Try again.");
     }
   };
 
   return (
-    <div className="login-container">
+    <div className="container">
       <h2>Login</h2>
       
-      <div style={{ marginBottom: "1rem" }}>
-        <label>Username: </label>
-        <input
-          type="text"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="Enter username"
-        />
-      </div>
-      
-      <div style={{ marginBottom: "1rem" }}>
-        <label>Password: </label>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Enter password"
-        />
-      </div>
+      <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Enter username" />
+      <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter password" />
       
       <button onClick={handleLogin}>Login</button>
 
-      {error && <p style={{ color: "red", marginTop: "1rem" }}>{error}</p>}
+      {error && <p className="error">{error}</p>}
     </div>
   );
 }
