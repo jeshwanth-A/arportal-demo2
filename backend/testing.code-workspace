@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"name": "testing",
+			"path": ".."
+		},
+		{
+			"name": "backend",
+			"path": "../../../arportal/backend"
+		},
+		{
+			"name": "frontend",
+			"path": "../../../arportal/frontend"
+		}
+	],
+	"settings": {}
+}
