@@ -10,13 +10,24 @@ function App() {
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    setIsLoggedIn(!!localStorage.getItem("authToken"));
-    setIsAdmin(localStorage.getItem("isAdmin") === "true");
+    // Get login state from localStorage
+    const token = localStorage.getItem("authToken");
+    const adminStatus = localStorage.getItem("isAdmin") === "true";
+
+    setIsLoggedIn(!!token); // If token exists, user is logged in
+    setIsAdmin(adminStatus); // If isAdmin = true, user is admin
   }, []);
 
   const handleSuccessfulLogin = () => {
     setIsLoggedIn(true);
     setIsAdmin(localStorage.getItem("isAdmin") === "true");
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("isAdmin");
+    setIsLoggedIn(false);
+    setIsAdmin(false);
   };
 
   return (
@@ -28,7 +39,8 @@ function App() {
           {!isLoggedIn && <Link to="/signup">Sign Up</Link>}
           {!isLoggedIn && <Link to="/login">Login</Link>}
           {isLoggedIn && <Link to="/upload">Upload</Link>}
-          {isAdmin && <Link to="/admin">Admin Panel</Link>} {/* Only show if admin */}
+          {isAdmin && <Link to="/admin">Admin Panel</Link>} {/* Only admin sees this */}
+          {isLoggedIn && <button onClick={handleLogout}>Logout</button>}
         </nav>
 
         <Routes>
