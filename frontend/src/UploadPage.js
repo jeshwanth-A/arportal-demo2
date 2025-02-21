@@ -52,7 +52,7 @@ export default function UploadPage() {
 
   return (
     <div className="upload-container">
-      <h2>Upload an Image to Generate a 3D Model</h2>
+      <h2>Upload an Image to Generate a 3D Model..</h2>
       <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files[0])} />
       <button onClick={handleUpload} disabled={loading}>{loading ? "Processing..." : "Upload"}</button>
 
