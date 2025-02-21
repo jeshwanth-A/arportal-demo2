@@ -8,7 +8,7 @@ export default function LoginPage({ onSuccessLogin }) {
   const [error, setError] = useState("");
 
   const navigate = useNavigate();
-  const BACKEND_URL = "https://arportaldemo2backend-686596926199.us-central1.run.app"; // Update if needed
+  const BACKEND_URL = "https://arportaldemo2backend-686596926199.us-central1.run.app";
 
   const handleLogin = async () => {
     setError("");
@@ -31,8 +31,9 @@ export default function LoginPage({ onSuccessLogin }) {
 
       console.log("✅ Login successful:", response.data);
 
-      // Save token to local storage
+      // Save token and admin status to localStorage
       localStorage.setItem("authToken", response.data.token);
+      localStorage.setItem("isAdmin", response.data.is_admin ? "true" : "false");
 
       // Notify App.js that login is successful
       onSuccessLogin();

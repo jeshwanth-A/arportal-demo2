@@ -111,7 +111,7 @@ def register(username: str = Form(...), password: str = Form(...)):
 @app.post("/login")
 def login(username: str = Form(...), password: str = Form(...)):
     """
-    Validate user credentials, then return a JWT.
+    Validate user credentials, then return a JWT and admin status.
     """
     if username not in users_db:
         raise HTTPException(status_code=401, detail="Invalid username or password")
@@ -120,9 +120,13 @@ def login(username: str = Form(...), password: str = Form(...)):
     if user_record["password"] != password:
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
+    # Determine if the user is an admin
+    is_admin = username == "mvsr" and password == "mvsr"
+
     # Generate JWT token
     token = create_access_token(user_record["user_id"])
-    return {"token": token}
+
+    return {"token": token, "is_admin": is_admin}
 
 ###############################
 #   Model Management          #
