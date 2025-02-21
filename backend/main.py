@@ -81,10 +81,7 @@ def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(auth
 @app.post("/register")
 def register(username: str = Form(...), password: str = Form(...)):
     """
-    Register a new user. In production:
-     - Check if username is unique in a real database
-     - Hash the password (bcrypt)
-     - Store user record securely
+    Register a new user. Stores in memory (use a database in production).
     """
     print(f"📌 Register attempt: username={username}")
 
