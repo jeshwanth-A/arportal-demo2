@@ -14,10 +14,12 @@ export default function SignUpPage() {
     setMessage("");
 
     try {
-      const response = await axios.post(`${BACKEND_URL}/register`, {
-        username,
-        password,
-      }, {
+      // ✅ Use URLSearchParams to format data correctly for FastAPI
+      const formData = new URLSearchParams();
+      formData.append("username", username);
+      formData.append("password", password);
+
+      const response = await axios.post(`${BACKEND_URL}/register`, formData, {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
       });
 
@@ -30,25 +32,18 @@ export default function SignUpPage() {
   return (
     <div className="signup-container">
       <h2>Sign Up</h2>
-      <div>
-        <label>Username: </label>
-        <input
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="Enter username"
-        />
-      </div>
-
-      <div>
-        <label>Password: </label>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Enter password"
-        />
-      </div>
-
+      <input
+        type="text"
+        value={username}
+        onChange={(e) => setUsername(e.target.value)}
+        placeholder="Enter username"
+      />
+      <input
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder="Enter password"
+      />
       <button onClick={handleSignUp}>Sign Up</button>
 
       {message && <p style={{ color: "green" }}>{message}</p>}

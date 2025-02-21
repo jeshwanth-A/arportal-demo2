@@ -1,13 +1,22 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
 export default function UploadPage() {
   const [file, setFile] = useState(null);
   const [modelUrl, setModelUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const navigate = useNavigate();
 
   const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8007";
+
+  useEffect(() => {
+    // Redirect to login if no token is found
+    if (!localStorage.getItem("authToken")) {
+      navigate("/login");
+    }
+  }, [navigate]);
 
   const handleUpload = async () => {
     if (!file) {
@@ -15,10 +24,10 @@ export default function UploadPage() {
       return;
     }
 
-    // Retrieve the token from localStorage (or wherever you stored it)
     const token = localStorage.getItem("authToken");
     if (!token) {
       alert("You must be logged in to upload.");
+      navigate("/login");
       return;
     }
 
@@ -29,12 +38,9 @@ export default function UploadPage() {
       setLoading(true);
       setProgress(10);
 
-      console.log(`📤 Uploading file to: ${BACKEND_URL}/upload`);
-
       const response = await axios.post(`${BACKEND_URL}/upload`, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
-          // Attach the token:
           Authorization: `Bearer ${token}`,
         },
         onUploadProgress: (progressEvent) => {
@@ -43,38 +49,27 @@ export default function UploadPage() {
         },
       });
 
-      console.log("✅ Upload response:", response.data);
-
-      // If your API returns { "model_file": "<path>" }, adjust accordingly
       if (response.data.model_file) {
         setModelUrl(response.data.model_file);
         setProgress(100);
-        setLoading(false);
-        console.log("🎉 3D Model Ready:", response.data.model_file);
       } else {
         alert("Upload successful, but no model file found in response.");
-        setLoading(false);
       }
     } catch (error) {
       console.error("❌ Upload failed:", error);
       alert("Upload failed. Check browser console for details.");
+    } finally {
       setLoading(false);
     }
   };
 
   return (
     <div className="upload-container">
-      <h2>Upload an Image to Generate a 3D Model..</h2>
-      <input 
-        type="file" 
-        accept="image/*" 
-        onChange={(e) => setFile(e.target.files[0])} 
-      />
+      <h2>Upload an Image to Generate a 3D Model</h2>
+      <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files[0])} />
       <button onClick={handleUpload} disabled={loading}>
-        {loading ? "Processing..." : "Upload"}
+        {loading ? `Processing... ${progress}%` : "Upload"}
       </button>
-
-      {loading && <p>Generating 3D Model... {progress}%</p>}
 
       {modelUrl && (
         <p>✅ 

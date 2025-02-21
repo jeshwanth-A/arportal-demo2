@@ -85,15 +85,21 @@ def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(auth
 @app.post("/register")
 def register(username: str = Form(...), password: str = Form(...)):
     """
-    Register a new user. In production, you should:
-     - Check if username is unique in a real DB
-     - Hash the password using bcrypt
+    Register a new player. In production, you'd:
+     - Check if username is unique in a real database
+     - Hash the password (bcrypt)
+     - Store user details securely
     """
+    print(f"📌 Register attempt: username={username}")
+
     if username in users_db:
+        print("⚠️ Username already exists!")
         raise HTTPException(status_code=400, detail="Username already exists")
 
     new_id = get_next_user_id()
     users_db[username] = {"password": password, "user_id": new_id}
+    print(f"✅ New user registered: {username} (ID {new_id})")
+
     return {"message": "User registered successfully", "user_id": new_id}
 
 @app.post("/login")
