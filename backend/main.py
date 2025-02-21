@@ -231,3 +231,18 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8080))
     uvicorn.run(app, host="0.0.0.0", port=port)
+    
+@app.post("/register")
+def register(username: str = Form(...), password: str = Form(...)):
+    """
+    Register a new player. In production, you'd:
+     - Check if username is unique in a real database
+     - Hash the password (bcrypt)
+     - Store user details securely
+    """
+    if username in users_db:
+        raise HTTPException(status_code=400, detail="Username already exists")
+
+    new_id = get_next_user_id()
+    users_db[username] = {"password": password, "user_id": new_id}
+    return {"message": "User registered successfully", "user_id": new_id}
