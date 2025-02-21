@@ -15,6 +15,13 @@ export default function UploadPage() {
       return;
     }
 
+    // Retrieve the token from localStorage (or wherever you stored it)
+    const token = localStorage.getItem("authToken");
+    if (!token) {
+      alert("You must be logged in to upload.");
+      return;
+    }
+
     const formData = new FormData();
     formData.append("file", file);
 
@@ -25,7 +32,11 @@ export default function UploadPage() {
       console.log(`📤 Uploading file to: ${BACKEND_URL}/upload`);
 
       const response = await axios.post(`${BACKEND_URL}/upload`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
+        headers: {
+          "Content-Type": "multipart/form-data",
+          // Attach the token:
+          Authorization: `Bearer ${token}`,
+        },
         onUploadProgress: (progressEvent) => {
           const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
           setProgress(percent);
@@ -34,11 +45,12 @@ export default function UploadPage() {
 
       console.log("✅ Upload response:", response.data);
 
-      if (response.data.download_url) {
-        setModelUrl(response.data.download_url);
+      // If your API returns { "model_file": "<path>" }, adjust accordingly
+      if (response.data.model_file) {
+        setModelUrl(response.data.model_file);
         setProgress(100);
         setLoading(false);
-        console.log("🎉 3D Model Ready:", response.data.download_url);
+        console.log("🎉 3D Model Ready:", response.data.model_file);
       } else {
         alert("Upload successful, but no model file found in response.");
         setLoading(false);
@@ -53,11 +65,24 @@ export default function UploadPage() {
   return (
     <div className="upload-container">
       <h2>Upload an Image to Generate a 3D Model..</h2>
-      <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files[0])} />
-      <button onClick={handleUpload} disabled={loading}>{loading ? "Processing..." : "Upload"}</button>
+      <input 
+        type="file" 
+        accept="image/*" 
+        onChange={(e) => setFile(e.target.files[0])} 
+      />
+      <button onClick={handleUpload} disabled={loading}>
+        {loading ? "Processing..." : "Upload"}
+      </button>
 
-      {loading && <p>Generating 3D Model...</p>}
-      {modelUrl && <p>✅ <a href={modelUrl} target="_blank" rel="noopener noreferrer">Download Here</a></p>}
+      {loading && <p>Generating 3D Model... {progress}%</p>}
+
+      {modelUrl && (
+        <p>✅ 
+          <a href={modelUrl} target="_blank" rel="noopener noreferrer">
+            Download Here
+          </a>
+        </p>
+      )}
     </div>
   );
 }
