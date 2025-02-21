@@ -49,7 +49,7 @@ export default function UploadPage() {
 
   return (
     <div className="upload-container">
-      <h2>Generate 3D Model from Image</h2>
+      <h2>Generate 3D Model from Image..</h2>
       <form onSubmit={handleUpload}>
         <div className="form-group">
           <label htmlFor="username">Username:</label>
