@@ -24,7 +24,7 @@ if not MESHY_API_KEY:
 SECRET_KEY = os.getenv("SECRET_KEY", "INSECURE_DEMO_KEY")
 
 # Directory to save 3D models
-SAVE_DIR = "/app/models"  # adjust as needed
+SAVE_DIR = "/app/models"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 ###############################
@@ -38,16 +38,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Setup for Meshy
 MESHY_HEADERS = {"Authorization": f"Bearer {MESHY_API_KEY}", "Content-Type": "application/json"}
 
 ###############################
 #   FAKE "DATABASE" STORAGE   #
 ###############################
-# In-memory user database: {username: {"password": str, "user_id": int}}
-users_db = {}
-# In-memory models DB: key=user_id => value=list of model file paths
-models_db = {}
+users_db = {}  # {username: {"password": str, "user_id": int}}
+models_db = {}  # key=user_id => list of model file paths
 
 def get_next_user_id() -> int:
     """Generate the next user ID based on current length of users_db."""
@@ -63,8 +60,7 @@ def create_access_token(user_id: int, expires_in_hours: int = 1) -> str:
         "user_id": user_id,
         "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=expires_in_hours)
     }
-    token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
-    return token
+    return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
 
 def decode_access_token(token: str) -> Optional[int]:
     """Return user_id if token is valid, else None."""
@@ -77,10 +73,6 @@ def decode_access_token(token: str) -> Optional[int]:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(auth_scheme)) -> int:
-    """
-    FastAPI dependency that extracts the user_id from the Bearer token.
-    Raises HTTP 401 if token is invalid or missing.
-    """
     token = credentials.credentials  # Extract token string
     user_id = decode_access_token(token)
     if not user_id:
@@ -93,10 +85,9 @@ def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(auth
 @app.post("/register")
 def register(username: str = Form(...), password: str = Form(...)):
     """
-    Register a new user. In production, you would:
-     - Check if username is unique in your real DB
-     - Hash the password with bcrypt
-     - Store user record securely
+    Register a new user. In production, you should:
+     - Check if username is unique in a real DB
+     - Hash the password using bcrypt
     """
     if username in users_db:
         raise HTTPException(status_code=400, detail="Username already exists")
@@ -118,6 +109,19 @@ def login(username: str = Form(...), password: str = Form(...)):
     return {"token": token}
 
 ###############################
+#    LIST USER'S 3D MODELS    #
+###############################
+@app.get("/my-models")
+def get_my_models(current_user_id: int = Depends(get_current_user_id)):
+    """
+    Return a list of model files belonging to the logged-in user.
+    """
+    return {
+        "user_id": current_user_id,
+        "models": models_db.get(current_user_id, [])
+    }
+
+###############################
 #      3D UPLOAD ENDPOINT     #
 ###############################
 @app.post("/upload")
@@ -127,9 +131,6 @@ async def upload_file(
 ):
     """
     Upload an image, convert it to 3D via Meshy, then download & save GLB locally.
-    In production, you'd:
-     - Actually store the file in a DB or S3
-     - Possibly store the final model in a real DB
     """
     # Read the uploaded image and convert to Data URI
     file_bytes = await file.read()
@@ -196,19 +197,6 @@ async def upload_file(
         # else, keep waiting if still in progress
 
 ###############################
-#    LIST USER'S 3D MODELS    #
-###############################
-@app.get("/my-models")
-def get_my_models(current_user_id: int = Depends(get_current_user_id)):
-    """
-    Return a list of model files belonging to the logged-in user.
-    """
-    return {
-        "user_id": current_user_id,
-        "models": models_db.get(current_user_id, [])
-    }
-
-###############################
 #   UTILITY FUNCTIONS         #
 ###############################
 def image_to_data_uri(image_bytes: bytes) -> str:
@@ -225,24 +213,8 @@ def home():
     """
     return {"message": "FastAPI with Auth + Meshy 3D Integration running!"}
 
-# If you want to run locally:
-#   uvicorn main:app --host 0.0.0.0 --port 8080
+# If running locally:
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8080))
     uvicorn.run(app, host="0.0.0.0", port=port)
-    
-@app.post("/register")
-def register(username: str = Form(...), password: str = Form(...)):
-    """
-    Register a new player. In production, you'd:
-     - Check if username is unique in a real database
-     - Hash the password (bcrypt)
-     - Store user details securely
-    """
-    if username in users_db:
-        raise HTTPException(status_code=400, detail="Username already exists")
-
-    new_id = get_next_user_id()
-    users_db[username] = {"password": password, "user_id": new_id}
-    return {"message": "User registered successfully", "user_id": new_id}
