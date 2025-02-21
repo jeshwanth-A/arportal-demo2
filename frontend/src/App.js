@@ -1,11 +1,27 @@
-import React from "react";
-import UploadPage from "./UploadPage"; // Import UploadPage.js
+// App.js
+import React, { useState } from "react";
+import LoginPage from "./LoginPage";
+import UploadPage from "./UploadPage";
 
 function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // Optionally, you can check if there's a token in localStorage already:
+  // useEffect(() => {
+  //   if (localStorage.getItem("authToken")) {
+  //     setIsLoggedIn(true);
+  //   }
+  // }, []);
+
   return (
     <div>
       <h1>3D Model Upload Portal</h1>
-      <UploadPage /> {/* Display Upload Page */}
+      
+      {!isLoggedIn ? (
+        <LoginPage onSuccessLogin={() => setIsLoggedIn(true)} />
+      ) : (
+        <UploadPage />
+      )}
     </div>
   );
 }

@@ -1,7 +1,8 @@
+// LoginPage.js
 import React, { useState } from "react";
 import axios from "axios";
 
-export default function LoginPage() {
+function LoginPage({ onSuccessLogin }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -9,44 +10,50 @@ export default function LoginPage() {
   const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8007";
 
   const handleLogin = async () => {
+    setError(""); // Clear any previous error
     try {
       const response = await axios.post(`${BACKEND_URL}/login`, {
         username,
         password,
       });
-      const token = response.data.token;
-      if (token) {
-        localStorage.setItem("authToken", token);
-        alert("Login successful! Token stored in localStorage.");
-        // Optionally redirect to upload page
-      } else {
-        setError("No token found in response.");
-      }
+      // Store the token in localStorage
+      localStorage.setItem("authToken", response.data.token);
+      
+      // Notify the parent (App.js) that login was successful
+      onSuccessLogin();
     } catch (err) {
-      setError(err.response?.data?.detail || "Login failed.");
+      // Display error from server or default
+      setError(err.response?.data?.detail || "Login failed, please try again.");
     }
   };
 
   return (
-    <div className="login-container">
+    <div style={{ maxWidth: "400px", margin: "0 auto" }}>
       <h2>Login</h2>
-      <div>
+      <div style={{ marginBottom: "1rem" }}>
         <label>Username: </label>
-        <input value={username} onChange={(e) => setUsername(e.target.value)} />
+        <input
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="Enter username"
+        />
       </div>
 
-      <div>
+      <div style={{ marginBottom: "1rem" }}>
         <label>Password: </label>
-        <input 
-          type="password" 
-          value={password} 
-          onChange={(e) => setPassword(e.target.value)} 
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Enter password"
         />
       </div>
 
       <button onClick={handleLogin}>Login</button>
-      
+
       {error && <p style={{ color: "red" }}>{error}</p>}
     </div>
   );
 }
+
+export default LoginPage;
