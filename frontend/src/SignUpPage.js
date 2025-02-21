@@ -1,64 +1,53 @@
 import React, { useState } from "react";
+import axios from "axios";
 
-function SignUpPage() {
+export default function SignUpPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const BACKEND_URL = "https://your-backend-url.cloud.run"; // Ensure correct backend URL
 
-    // Create form data for the backend
-    const formData = new FormData();
-    formData.append("username", username);
-    formData.append("password", password);
+  const handleSignUp = async () => {
+    setError("");
+    setMessage("");
 
     try {
-      const response = await fetch("http://localhost:8080/register", {
-        method: "POST",
-        body: formData, // Send as form-data, not JSON
+      const formData = new URLSearchParams();
+      formData.append("username", username);
+      formData.append("password", password);
+
+      const response = await axios.post(`${BACKEND_URL}/register`, formData, {
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
       });
 
-      const data = await response.json();
-      console.log("Response:", data); // Debug: check what comes back
-
-      if (response.ok && data.message === "User registered successfully") {
-        setMessage("Signup successful!");
-        // Optionally redirect or clear form
-        setUsername("");
-        setPassword("");
-      } else {
-        setMessage("Signup failed. Try again.");
-      }
-    } catch (error) {
-      console.error("Error:", error); // Debug: log any network errors
-      setMessage("Signup failed. Try again.");
+      setMessage(response.data.message);
+    } catch (err) {
+      console.error("❌ Signup Error:", err.response);
+      setError(err.response?.data?.detail || "Signup failed. Try again.");
     }
   };
 
   return (
-    <div>
+    <div className="signup-container">
       <h2>Sign Up</h2>
-      <form onSubmit={handleSubmit}>
-        <input
-          type="text"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="Username"
-          required
-        />
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
-          required
-        />
-        <button type="submit">Sign Up</button>
-      </form>
-      <p>{message}</p>
+      <input
+        type="text"
+        value={username}
+        onChange={(e) => setUsername(e.target.value)}
+        placeholder="Enter username"
+      />
+      <input
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder="Enter password"
+      />
+      <button onClick={handleSignUp}>Sign Up</button>
+
+      {message && <p style={{ color: "green" }}>{message}</p>}
+      {error && <p style={{ color: "red" }}>{error}</p>}
     </div>
   );
 }
-
-export default SignUpPage;
