@@ -15,7 +15,7 @@ export default function SignUpPage() {
     setMessage("");
 
     if (!username || !password) {
-      setError("Username and password are required..");
+      setError("Username and password are required.");
       return;
     }
 
