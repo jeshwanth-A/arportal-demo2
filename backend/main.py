@@ -29,10 +29,10 @@ app = FastAPI()
 # 🔥 FIX CORS ERROR: Allow frontend requests 🔥
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 👈 Change this to your frontend URL in production
+    allow_origins=["*"],  # Change this to your frontend URL in production
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 MESHY_HEADERS = {"Authorization": f"Bearer {MESHY_API_KEY}", "Content-Type": "application/json"}
@@ -90,9 +90,17 @@ def login(username: str = Form(...), password: str = Form(...)):
 
 @app.get("/all-users")
 def get_all_users(current_user: str = Depends(get_current_user)):
-    if not users_db.get(current_user, {}).get("is_admin", False):
+    print(f"🔍 Admin Request from: {current_user}")  # Debugging log
+
+    if current_user not in users_db:
+        print("⛔ User not found!")
+        raise HTTPException(status_code=403, detail="User not found")
+
+    if not users_db[current_user]["is_admin"]:
+        print("⛔ Access denied: Not an admin!")
         raise HTTPException(status_code=403, detail="Admin access required")
 
+    print(f"✅ Returning users: {users_db}")  # Debugging log
     return {"users": users_db}
 
 ###############################
