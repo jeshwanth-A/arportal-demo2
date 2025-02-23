@@ -9,13 +9,9 @@ from fastapi import FastAPI, Form, File, UploadFile, Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from google.cloud import firestore
 
 # Load environment variables
 load_dotenv()
-
-# Initialize Firestore
-db = firestore.Client()
 
 ###############################
 #   Environment Variables     #
@@ -41,6 +37,12 @@ app.add_middleware(
 
 MESHY_HEADERS = {"Authorization": f"Bearer {MESHY_API_KEY}", "Content-Type": "application/json"}
 auth_scheme = HTTPBearer()
+
+###############################
+#   In-Memory Database       #
+###############################
+users_db = {}  # { "username": { "password": "password123", "is_admin": False } }
+models_db = {}  # { "username": ["model1.glb", "model2.glb"] }
 
 ###############################
 #   JWT Utilities & Auth      #
@@ -69,35 +71,29 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(auth_sc
 ###############################
 @app.post("/register")
 def register(username: str = Form(...), password: str = Form(...)):
-    users_ref = db.collection("users")
-    
-    if users_ref.document(username).get().exists:
+    if username in users_db:
         raise HTTPException(status_code=400, detail="Username already exists")
 
-    users_ref.document(username).set({"password": password, "is_admin": username == "mvsr"})
+    users_db[username] = {"password": password, "is_admin": username == "mvsr"}
     
     return {"message": "User registered successfully"}
 
 @app.post("/login")
 def login(username: str = Form(...), password: str = Form(...)):
-    user_doc = db.collection("users").document(username).get()
-    
-    if not user_doc.exists or user_doc.to_dict()["password"] != password:
+    if username not in users_db or users_db[username]["password"] != password:
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
-    is_admin = user_doc.to_dict().get("is_admin", False)
+    is_admin = users_db[username]["is_admin"]
     token = create_access_token(username)
     
     return {"token": token, "is_admin": is_admin}
 
 @app.get("/all-users")
 def get_all_users(current_user: str = Depends(get_current_user)):
-    user_doc = db.collection("users").document(current_user).get()
-    if not user_doc.exists or not user_doc.to_dict().get("is_admin", False):
+    if not users_db.get(current_user, {}).get("is_admin", False):
         raise HTTPException(status_code=403, detail="Admin access required")
 
-    users = {doc.id: doc.to_dict() for doc in db.collection("users").stream()}
-    return {"users": users}
+    return {"users": users_db}
 
 ###############################
 #   Model Upload & Retrieval  #
@@ -153,9 +149,9 @@ async def upload_file(
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Failed to download GLB: {str(e)}")
 
-            db.collection("models").document(current_user).set(
-                {"models": firestore.ArrayUnion([output_filename])}, merge=True
-            )
+            if current_user not in models_db:
+                models_db[current_user] = []
+            models_db[current_user].append(output_filename)
 
             return {"model_file": output_filename}
 
@@ -164,8 +160,7 @@ async def upload_file(
 
 @app.get("/my-models")
 def get_my_models(current_user: str = Depends(get_current_user)):
-    user_models = db.collection("models").document(current_user).get()
-    return {"models": user_models.to_dict().get("models", []) if user_models.exists else []}
+    return {"models": models_db.get(current_user, [])}
 
 ###############################
 #   Utility Functions         #
@@ -175,7 +170,7 @@ def image_to_data_uri(image_bytes: bytes) -> str:
 
 @app.get("/")
 def home():
-    return {"message": "FastAPI with Firestore and Meshy 3D Integration running!"}
+    return {"message": "FastAPI with Meshy 3D Integration running!"}
 
 ###############################
 #   Run FastAPI Locally       #

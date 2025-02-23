@@ -3,5 +3,4 @@ uvicorn
 python-dotenv
 requests
 python-multipart
-google-cloud-firestore
 pyjwt
