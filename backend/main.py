@@ -90,17 +90,19 @@ def login(username: str = Form(...), password: str = Form(...)):
 
 @app.get("/all-users")
 def get_all_users(current_user: str = Depends(get_current_user)):
-    print(f"🔍 Admin Request from: {current_user}")  # Debugging log
+    print(f"🔍 Admin Panel Access Attempt by: {current_user}")
 
+    # Ensure user exists in database
     if current_user not in users_db:
-        print("⛔ User not found!")
+        print("⛔ User not found in users_db!")
         raise HTTPException(status_code=403, detail="User not found")
 
-    if not users_db[current_user]["is_admin"]:
-        print("⛔ Access denied: Not an admin!")
+    # Check if user is an admin
+    if not users_db[current_user].get("is_admin", False):
+        print("⛔ Access Denied! User is not an admin.")
         raise HTTPException(status_code=403, detail="Admin access required")
 
-    print(f"✅ Returning users: {users_db}")  # Debugging log
+    print("✅ Admin Access Granted. Returning User List.")
     return {"users": users_db}
 
 ###############################
@@ -179,7 +181,7 @@ def image_to_data_uri(image_bytes: bytes) -> str:
 @app.get("/")
 def home():
     return {"message": "FastAPI with Meshy 3D Integration running!"}
-
+ 
 ###############################
 #   Run FastAPI Locally       #
 ###############################
