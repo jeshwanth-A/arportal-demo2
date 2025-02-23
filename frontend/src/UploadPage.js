@@ -9,7 +9,7 @@ export default function UploadPage() {
   const [progress, setProgress] = useState(0);
   const navigate = useNavigate();
 
-  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8007";
+  const BACKEND_URL = "https://arportaldemo2backend-686596926199.us-central1.run.app";
 
   useEffect(() => {
     // Redirect to login if no token is found
