@@ -29,9 +29,12 @@ SAVE_DIR = "models"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 app = FastAPI()
+
+# 🔥 FIX CORS ERROR: Allow frontend requests 🔥
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  
+    allow_origins=["*"],  # 👈 Change this to your frontend URL in production
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
