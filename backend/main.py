@@ -18,7 +18,7 @@ load_dotenv()
 ###############################
 MESHY_API_KEY = os.getenv("MESHY_API_KEY")
 if not MESHY_API_KEY:
-    raise Exception("MESHY_API_KEY environment variable is required.")
+    raise Exception("MESHY_API_KEY environment variable is required..")
 
 SECRET_KEY = os.getenv("SECRET_KEY", "INSECURE_DEMO_KEY")
 SAVE_DIR = "models"
