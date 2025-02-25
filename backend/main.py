@@ -1,3 +1,7 @@
+from fastapi import FastAPI, Form, File, UploadFile, Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 import os
 import time
 import base64
@@ -5,9 +9,6 @@ import datetime
 import requests
 import jwt
 from typing import Optional
-from fastapi import FastAPI, Form, File, UploadFile, Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -26,7 +27,7 @@ os.makedirs(SAVE_DIR, exist_ok=True)
 
 app = FastAPI()
 
-# 🔥 FIX CORS ERROR: Allow frontend requests 🔥
+# Allow frontend requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Change this to your frontend URL in production
@@ -163,7 +164,12 @@ async def upload_file(
                 models_db[current_user] = []
             models_db[current_user].append(output_filename)
 
-            return {"model_file": output_filename}
+            # Return the file for download
+            return FileResponse(
+                path=output_filename,
+                filename=os.path.basename(output_filename),
+                media_type="application/octet-stream"
+            )
 
         elif status_ in ["FAILED", "CANCELED"]:
             raise HTTPException(status_code=500, detail=f"Meshy task {status_}")
