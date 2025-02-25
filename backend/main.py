@@ -44,6 +44,7 @@ auth_scheme = HTTPBearer()
 ###############################
 users_db = {}  # { "username": { "password": "password123", "is_admin": False } }
 models_db = {}  # { "username": ["model1.glb", "model2.glb"] }
+tasks_db = {}  # { "task_id": { "username": "user", "filename": "path/to/file.glb", "status": "PENDING" } }
 
 ###############################
 #   JWT Utilities & Auth      #
@@ -92,17 +93,12 @@ def login(username: str = Form(...), password: str = Form(...)):
 @app.get("/all-users")
 def get_all_users(current_user: str = Depends(get_current_user)):
     print(f"🔍 Admin Panel Access Attempt by: {current_user}")
-
-    # Ensure user exists in database
     if current_user not in users_db:
         print("⛔ User not found in users_db!")
         raise HTTPException(status_code=403, detail="User not found")
-
-    # Check if user is an admin
     if not users_db[current_user].get("is_admin", False):
         print("⛔ Access Denied! User is not an admin.")
         raise HTTPException(status_code=403, detail="Admin access required")
-
     print("✅ Admin Access Granted. Returning User List.")
     return {"users": users_db}
 
@@ -135,9 +131,30 @@ async def upload_file(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Meshy API call failed: {str(e)}")
 
-    while True:
-        time.sleep(30)
+    # Store task metadata
+    base_filename = os.path.splitext(file.filename)[0]
+    output_filename = os.path.join(SAVE_DIR, f"{base_filename}_{int(time.time())}.glb")
+    tasks_db[task_id] = {
+        "username": current_user,
+        "filename": output_filename,
+        "status": "PENDING"
+    }
+
+    return {"task_id": task_id}
+
+@app.get("/task-status/{task_id}")
+def get_task_status(task_id: str, current_user: str = Depends(get_current_user)):
+    if task_id not in tasks_db or tasks_db[task_id]["username"] != current_user:
+        raise HTTPException(status_code=404, detail="Task not found or access denied")
+
+    task_info = tasks_db[task_id]
+    if task_info["status"] != "PENDING":
+        return {"status": task_info["status"]}
+
+    # Check Meshy API for task status
+    try:
         task_response = requests.get(f"https://api.meshy.ai/openapi/v1/image-to-3d/{task_id}", headers=MESHY_HEADERS)
+        task_response.raise_for_status()
         task_json = task_response.json()
         status_ = task_json.get("status")
 
@@ -146,33 +163,44 @@ async def upload_file(
             glb_url = model_urls.get("glb")
 
             if not glb_url:
+                tasks_db[task_id]["status"] = "FAILED"
                 raise HTTPException(status_code=500, detail="No GLB URL found in Meshy response")
 
-            base_filename = os.path.splitext(file.filename)[0]
-            output_filename = os.path.join(SAVE_DIR, f"{base_filename}_{int(time.time())}.glb")
+            # Download the file
+            glb_response = requests.get(glb_url, stream=True)
+            glb_response.raise_for_status()
+            with open(task_info["filename"], "wb") as f:
+                for chunk in glb_response.iter_content(chunk_size=8192):
+                    f.write(chunk)
 
-            try:
-                glb_response = requests.get(glb_url, stream=True)
-                glb_response.raise_for_status()
-                with open(output_filename, "wb") as f:
-                    for chunk in glb_response.iter_content(chunk_size=8192):
-                        f.write(chunk)
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Failed to download GLB: {str(e)}")
-
+            # Update databases
             if current_user not in models_db:
                 models_db[current_user] = []
-            models_db[current_user].append(output_filename)
-
-            # Return the file for download
-            return FileResponse(
-                path=output_filename,
-                filename=os.path.basename(output_filename),
-                media_type="application/octet-stream"
-            )
+            models_db[current_user].append(task_info["filename"])
+            tasks_db[task_id]["status"] = "SUCCEEDED"
 
         elif status_ in ["FAILED", "CANCELED"]:
-            raise HTTPException(status_code=500, detail=f"Meshy task {status_}")
+            tasks_db[task_id]["status"] = status_
+
+        return {"status": tasks_db[task_id]["status"]}
+    except Exception as e:
+        tasks_db[task_id]["status"] = "FAILED"
+        raise HTTPException(status_code=500, detail=f"Task status check failed: {str(e)}")
+
+@app.get("/download/{task_id}")
+def download_file(task_id: str, current_user: str = Depends(get_current_user)):
+    if task_id not in tasks_db or tasks_db[task_id]["username"] != current_user:
+        raise HTTPException(status_code=404, detail="Task not found or access denied")
+
+    task_info = tasks_db[task_id]
+    if task_info["status"] != "SUCCEEDED":
+        raise HTTPException(status_code=400, detail="Task not completed or failed")
+
+    return FileResponse(
+        path=task_info["filename"],
+        filename=os.path.basename(task_info["filename"]),
+        media_type="application/octet-stream"
+    )
 
 @app.get("/my-models")
 def get_my_models(current_user: str = Depends(get_current_user)):
@@ -187,7 +215,7 @@ def image_to_data_uri(image_bytes: bytes) -> str:
 @app.get("/")
 def home():
     return {"message": "FastAPI with Meshy 3D Integration running!"}
- 
+
 ###############################
 #   Run FastAPI Locally       #
 ###############################
