@@ -1,7 +1,3 @@
-from fastapi import FastAPI, Form, File, UploadFile, Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.responses import FileResponse
-from fastapi.middleware.cors import CORSMiddleware
 import os
 import time
 import base64
@@ -9,6 +5,9 @@ import datetime
 import requests
 import jwt
 from typing import Optional
+from fastapi import FastAPI, Form, File, UploadFile, Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -22,20 +21,18 @@ if not MESHY_API_KEY:
     raise Exception("MESHY_API_KEY environment variable is required.")
 
 SECRET_KEY = os.getenv("SECRET_KEY", "INSECURE_DEMO_KEY")
-
-# ✅ Ensure models are saved inside the Downloads folder for easy access
-SAVE_DIR = os.path.join(os.path.expanduser("~"), "Downloads", "3D_Models")
+SAVE_DIR = "models"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 app = FastAPI()
 
-# ✅ CORS: Allow frontend requests securely
+# 🔥 FIX CORS ERROR: Allow frontend requests 🔥
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://yourfrontend.com"],  # Replace with frontend URL
+    allow_origins=["*"],  # 👈 Change this to your frontend URL in production
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["*"],
 )
 
 MESHY_HEADERS = {"Authorization": f"Bearer {MESHY_API_KEY}", "Content-Type": "application/json"}
@@ -46,7 +43,6 @@ auth_scheme = HTTPBearer()
 ###############################
 users_db = {}  # { "username": { "password": "password123", "is_admin": False } }
 models_db = {}  # { "username": ["model1.glb", "model2.glb"] }
-tasks_db = {}  # { "task_id": { "username": "user", "filename": "path/to/file.glb", "status": "PENDING" } }
 
 ###############################
 #   JWT Utilities & Auth      #
@@ -94,8 +90,9 @@ def login(username: str = Form(...), password: str = Form(...)):
 
 @app.get("/all-users")
 def get_all_users(current_user: str = Depends(get_current_user)):
-    if current_user not in users_db or not users_db[current_user].get("is_admin", False):
+    if not users_db.get(current_user, {}).get("is_admin", False):
         raise HTTPException(status_code=403, detail="Admin access required")
+
     return {"users": users_db}
 
 ###############################
@@ -127,38 +124,39 @@ async def upload_file(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Meshy API call failed: {str(e)}")
 
-    base_filename = os.path.splitext(file.filename)[0]
-    output_filename = os.path.join(SAVE_DIR, f"{base_filename}_{int(time.time())}.glb")
-    tasks_db[task_id] = {
-        "username": current_user,
-        "filename": output_filename,
-        "status": "PENDING"
-    }
+    while True:
+        time.sleep(30)
+        task_response = requests.get(f"https://api.meshy.ai/openapi/v1/image-to-3d/{task_id}", headers=MESHY_HEADERS)
+        task_json = task_response.json()
+        status_ = task_json.get("status")
 
-    return {"task_id": task_id}
+        if status_ == "SUCCEEDED":
+            model_urls = task_json.get("model_urls", {})
+            glb_url = model_urls.get("glb")
 
-@app.get("/task-status/{task_id}")
-def get_task_status(task_id: str, current_user: str = Depends(get_current_user)):
-    if task_id not in tasks_db or tasks_db[task_id]["username"] != current_user:
-        raise HTTPException(status_code=404, detail="Task not found or access denied")
+            if not glb_url:
+                raise HTTPException(status_code=500, detail="No GLB URL found in Meshy response")
 
-    task_info = tasks_db[task_id]
-    return {"status": task_info["status"]}
+            base_filename = os.path.splitext(file.filename)[0]
+            output_filename = os.path.join(SAVE_DIR, f"{base_filename}_{int(time.time())}.glb")
 
-@app.get("/download/{task_id}")
-def download_file(task_id: str, current_user: str = Depends(get_current_user)):
-    if task_id not in tasks_db or tasks_db[task_id]["username"] != current_user:
-        raise HTTPException(status_code=404, detail="Task not found or access denied")
+            try:
+                glb_response = requests.get(glb_url, stream=True)
+                glb_response.raise_for_status()
+                with open(output_filename, "wb") as f:
+                    for chunk in glb_response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to download GLB: {str(e)}")
 
-    task_info = tasks_db[task_id]
-    if task_info["status"] != "SUCCEEDED":
-        raise HTTPException(status_code=400, detail="Task not completed or failed")
+            if current_user not in models_db:
+                models_db[current_user] = []
+            models_db[current_user].append(output_filename)
 
-    return FileResponse(
-        path=task_info["filename"],
-        filename=os.path.basename(task_info["filename"]),
-        media_type="application/octet-stream"
-    )
+            return {"model_file": output_filename}
+
+        elif status_ in ["FAILED", "CANCELED"]:
+            raise HTTPException(status_code=500, detail=f"Meshy task {status_}")
 
 @app.get("/my-models")
 def get_my_models(current_user: str = Depends(get_current_user)):
