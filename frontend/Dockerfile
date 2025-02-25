@@ -4,23 +4,23 @@ FROM node:18
 # Set working directory
 WORKDIR /app
 
-# Copy package.json and package-lock.json first
-COPY package.json package-lock.json ./
+# Copy package.json and package-lock.json first (for better caching)
+COPY package*.json ./
 
-# Install dependencies (caches layers to speed up builds)
+# Install dependencies
 RUN npm install
 
-# Copy rest of the project files
+# Copy the rest of the project files
 COPY . .
 
 # Build the React app
 RUN npm run build
 
-# Install a lightweight web server for Cloud Run
+# Install serve to host the app
 RUN npm install -g serve
 
-# Expose the correct port for Cloud Run
+# Expose the correct port
 EXPOSE 8080
 
-# Serve the built React app on port 8080
+# Start the app
 CMD ["serve", "-s", "build", "-l", "8080"]
