@@ -19,18 +19,20 @@ load_dotenv()
 ###############################
 MESHY_API_KEY = os.getenv("MESHY_API_KEY")
 if not MESHY_API_KEY:
-    raise Exception("MESHY_API_KEY environment variable is required..")
+    raise Exception("MESHY_API_KEY environment variable is required.")
 
 SECRET_KEY = os.getenv("SECRET_KEY", "INSECURE_DEMO_KEY")
-SAVE_DIR = "models"
+
+# ✅ Ensure models are saved inside the Downloads folder for easy access
+SAVE_DIR = os.path.join(os.path.expanduser("~"), "Downloads", "3D_Models")
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 app = FastAPI()
 
-# Allow frontend requests
+# ✅ CORS: Allow frontend requests securely
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Change this to your frontend URL in production
+    allow_origins=["http://localhost:3000", "https://yourfrontend.com"],  # Replace with frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["Authorization", "Content-Type"],
@@ -92,14 +94,8 @@ def login(username: str = Form(...), password: str = Form(...)):
 
 @app.get("/all-users")
 def get_all_users(current_user: str = Depends(get_current_user)):
-    print(f"🔍 Admin Panel Access Attempt by: {current_user}")
-    if current_user not in users_db:
-        print("⛔ User not found in users_db!")
-        raise HTTPException(status_code=403, detail="User not found")
-    if not users_db[current_user].get("is_admin", False):
-        print("⛔ Access Denied! User is not an admin.")
+    if current_user not in users_db or not users_db[current_user].get("is_admin", False):
         raise HTTPException(status_code=403, detail="Admin access required")
-    print("✅ Admin Access Granted. Returning User List.")
     return {"users": users_db}
 
 ###############################
@@ -131,7 +127,6 @@ async def upload_file(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Meshy API call failed: {str(e)}")
 
-    # Store task metadata
     base_filename = os.path.splitext(file.filename)[0]
     output_filename = os.path.join(SAVE_DIR, f"{base_filename}_{int(time.time())}.glb")
     tasks_db[task_id] = {
@@ -148,44 +143,7 @@ def get_task_status(task_id: str, current_user: str = Depends(get_current_user))
         raise HTTPException(status_code=404, detail="Task not found or access denied")
 
     task_info = tasks_db[task_id]
-    if task_info["status"] != "PENDING":
-        return {"status": task_info["status"]}
-
-    # Check Meshy API for task status
-    try:
-        task_response = requests.get(f"https://api.meshy.ai/openapi/v1/image-to-3d/{task_id}", headers=MESHY_HEADERS)
-        task_response.raise_for_status()
-        task_json = task_response.json()
-        status_ = task_json.get("status")
-
-        if status_ == "SUCCEEDED":
-            model_urls = task_json.get("model_urls", {})
-            glb_url = model_urls.get("glb")
-
-            if not glb_url:
-                tasks_db[task_id]["status"] = "FAILED"
-                raise HTTPException(status_code=500, detail="No GLB URL found in Meshy response")
-
-            # Download the file
-            glb_response = requests.get(glb_url, stream=True)
-            glb_response.raise_for_status()
-            with open(task_info["filename"], "wb") as f:
-                for chunk in glb_response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-
-            # Update databases
-            if current_user not in models_db:
-                models_db[current_user] = []
-            models_db[current_user].append(task_info["filename"])
-            tasks_db[task_id]["status"] = "SUCCEEDED"
-
-        elif status_ in ["FAILED", "CANCELED"]:
-            tasks_db[task_id]["status"] = status_
-
-        return {"status": tasks_db[task_id]["status"]}
-    except Exception as e:
-        tasks_db[task_id]["status"] = "FAILED"
-        raise HTTPException(status_code=500, detail=f"Task status check failed: {str(e)}")
+    return {"status": task_info["status"]}
 
 @app.get("/download/{task_id}")
 def download_file(task_id: str, current_user: str = Depends(get_current_user)):
