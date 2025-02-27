@@ -1,127 +1,181 @@
-from fastapi import FastAPI, File, UploadFile, Form
-import requests
 import os
-import base64
 import time
-from dotenv import load_dotenv  # Load environment variables
+import base64
+import datetime
+import requests
+import jwt
+from typing import Optional
+from fastapi import FastAPI, Form, File, UploadFile, Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from dotenv import load_dotenv
 
-# Load environment variables from .env file
+# Load environment variables
 load_dotenv()
 
-# Define FastAPI app
-app = FastAPI()
+###############################
+#   Environment Variables     #
+###############################
+MESHY_API_KEY = os.getenv("MESHY_API_KEY")
+if not MESHY_API_KEY:
+    raise Exception("MESHY_API_KEY environment variable is required.")
 
-# Load API Key from environment variable
-API_KEY = os.getenv("MESHY_API_KEY")
-if not API_KEY:
-    print("Warning: API Key not found. Please set MESHY_API_KEY environment variable.")
-    API_KEY = input("Enter your API key: ")
-
-# Request headers for the Meshy API
-HEADERS = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
-
-# Set the directory where the downloaded 3D model will be saved
-SAVE_DIR = "/app/3D_Models"
+SECRET_KEY = os.getenv("SECRET_KEY", "INSECURE_DEMO_KEY")
+SAVE_DIR = "models"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
-# 🔹 **CORS Middleware (Fix for Frontend Access)**
-FRONTEND_URL = "https://calmbeat.live"
+app = FastAPI()
 
+# 🔥 FIX CORS ERROR: Allow frontend requests 🔥
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_URL],  # ✅ Explicitly allow frontend domain
+    allow_origins=["*"],  # 👈 Change this to your frontend URL in production
     allow_credentials=True,
-    allow_methods=["*"],  # ✅ Allow all HTTP methods
-    allow_headers=["*"],  # ✅ Allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-@app.get("/")
-def home():
-    return {"message": "Backend is running! Visit /docs for API documentation."}
+MESHY_HEADERS = {"Authorization": f"Bearer {MESHY_API_KEY}", "Content-Type": "application/json"}
+auth_scheme = HTTPBearer()
 
-def image_to_data_uri(image_bytes: bytes) -> str:
-    """
-    Convert image bytes to a Base64 Data URI.
-    """
-    base64_data = base64.b64encode(image_bytes).decode("utf-8")
-    return f"data:image/jpeg;base64,{base64_data}"
+###############################
+#   In-Memory Database       #
+###############################
+users_db = {}  # { "username": { "password": "password123", "is_admin": False } }
+models_db = {}  # { "username": ["model1.glb", "model2.glb"] }
 
-@app.post("/upload")
-async def upload_file(file: UploadFile = File(...), username: str = Form("guest")):
-    print(f"📥 Received file: {file.filename}, Type: {file.content_type}, User: {username}")
+###############################
+#   JWT Utilities & Auth      #
+###############################
+def create_access_token(username: str, expires_in_hours: int = 24) -> str:
+    payload = {
+        "username": username,
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=expires_in_hours)
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+
+def decode_access_token(token: str) -> Optional[str]:
     try:
-        # Read file & convert to Base64 Data URI
-        file_bytes = await file.read()
-        image_data_uri = image_to_data_uri(file_bytes)
+        decoded = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        return decoded.get("username")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
-        # Payload for Meshy API
-        payload = {
-            "image_url": image_data_uri,
-            "enable_pbr": False,
-            "should_remesh": True,
-            "should_texture": True
-        }
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(auth_scheme)) -> str:
+    return decode_access_token(credentials.credentials)
 
-        response = requests.post("https://api.meshy.ai/openapi/v1/image-to-3d", json=payload, headers=HEADERS)
+###############################
+#   Authentication Endpoints  #
+###############################
+@app.post("/register")
+def register(username: str = Form(...), password: str = Form(...)):
+    if username in users_db:
+        raise HTTPException(status_code=400, detail="Username already exists")
+
+    users_db[username] = {"password": password, "is_admin": username == "mvsr"}
+    
+    return {"message": "User registered successfully"}
+
+@app.post("/login")
+def login(username: str = Form(...), password: str = Form(...)):
+    if username not in users_db or users_db[username]["password"] != password:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    is_admin = users_db[username]["is_admin"]
+    token = create_access_token(username)
+    
+    return {"token": token, "is_admin": is_admin}
+
+@app.get("/all-users")
+def get_all_users(current_user: str = Depends(get_current_user)):
+    if not users_db.get(current_user, {}).get("is_admin", False):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    return {"users": users_db}
+
+###############################
+#   Model Upload & Retrieval  #
+###############################
+@app.post("/upload")
+async def upload_file(
+    file: UploadFile = File(...),
+    current_user: str = Depends(get_current_user)
+):
+    file_bytes = await file.read()
+    image_data_uri = image_to_data_uri(file_bytes)
+
+    payload = {
+        "image_url": image_data_uri,
+        "enable_pbr": False,
+        "should_remesh": True,
+        "should_texture": True
+    }
+
+    try:
+        response = requests.post("https://api.meshy.ai/openapi/v1/image-to-3d", json=payload, headers=MESHY_HEADERS)
         response.raise_for_status()
         task_data = response.json()
         task_id = task_data.get("result")
 
         if not task_id:
-            return JSONResponse(content={"error": "Task ID not received", "details": task_data}, status_code=500)
+            raise HTTPException(status_code=500, detail="Meshy API did not return a task ID")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Meshy API call failed: {str(e)}")
 
-        print(f"✅ Task Created: {task_id}")
+    while True:
+        time.sleep(30)
+        task_response = requests.get(f"https://api.meshy.ai/openapi/v1/image-to-3d/{task_id}", headers=MESHY_HEADERS)
+        task_json = task_response.json()
+        status_ = task_json.get("status")
 
-        # Poll for task completion
-        while True:
-            time.sleep(30)  # Wait before checking status again
-            task_response = requests.get(f"https://api.meshy.ai/openapi/v1/image-to-3d/{task_id}", headers=HEADERS)
-            task_status = task_response.json()
-            status = task_status.get("status")
-            progress = task_status.get("progress", 0)
-            print(f"⏳ Task Status: {status}, Progress: {progress}%")
+        if status_ == "SUCCEEDED":
+            model_urls = task_json.get("model_urls", {})
+            glb_url = model_urls.get("glb")
 
-            if status == "SUCCEEDED":
-                # Get GLB file URL
-                model_urls = task_status.get("model_urls", {})
-                glb_url = model_urls.get("glb")
+            if not glb_url:
+                raise HTTPException(status_code=500, detail="No GLB URL found in Meshy response")
 
-                if not glb_url:
-                    return JSONResponse(content={"error": "3D model URL not found", "details": task_status}, status_code=500)
+            base_filename = os.path.splitext(file.filename)[0]
+            output_filename = os.path.join(SAVE_DIR, f"{base_filename}_{int(time.time())}.glb")
 
-                print(f"🎉 3D Model Ready: {glb_url}")
-
-                # Save the file locally
-                base_filename = os.path.splitext(file.filename)[0]
-                output_filename = f"{base_filename}_{int(time.time())}.glb"
-                file_path = os.path.join(SAVE_DIR, output_filename)
-
-                print(f"📥 Downloading {glb_url} to {file_path} ...")
+            try:
                 glb_response = requests.get(glb_url, stream=True)
                 glb_response.raise_for_status()
-
-                with open(file_path, "wb") as f:
+                with open(output_filename, "wb") as f:
                     for chunk in glb_response.iter_content(chunk_size=8192):
                         f.write(chunk)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to download GLB: {str(e)}")
 
-                print(f"✅ Download complete! File saved at {file_path}")
+            if current_user not in models_db:
+                models_db[current_user] = []
+            models_db[current_user].append(output_filename)
 
-                # Return correct download URL
-                download_url = f"https://backend-service-686596926199.us-central1.run.app/download/{output_filename}"
-                return JSONResponse(content={"model_file": output_filename, "download_url": download_url})
+            return {"model_file": output_filename}
 
-            elif status in ["FAILED", "CANCELED"]:
-                return JSONResponse(content={"error": f"Task {status}", "details": task_status}, status_code=500)
+        elif status_ in ["FAILED", "CANCELED"]:
+            raise HTTPException(status_code=500, detail=f"Meshy task {status_}")
 
-    except Exception as e:
-        print("❌ Error processing file:", str(e))
-        return JSONResponse(content={"error": "Internal Server Error", "details": str(e)}, status_code=500)
+@app.get("/my-models")
+def get_my_models(current_user: str = Depends(get_current_user)):
+    return {"models": models_db.get(current_user, [])}
 
-@app.get("/download/{filename}")
-def download_file(filename: str):
-    file_path = os.path.join(SAVE_DIR, filename)
-    if os.path.exists(file_path):
-        return FileResponse(file_path, media_type="application/octet-stream", filename=filename)
-    return JSONResponse(content={"error": "File not found"}, status_code=404)
+###############################
+#   Utility Functions         #
+###############################
+def image_to_data_uri(image_bytes: bytes) -> str:
+    return f"data:image/jpeg;base64,{base64.b64encode(image_bytes).decode('utf-8')}"
+
+@app.get("/")
+def home():
+    return {"message": "FastAPI with Meshy 3D Integration running!"}
+
+###############################
+#   Run FastAPI Locally       #
+###############################
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8080))
+    uvicorn.run(app, host="0.0.0.0", port=port)
