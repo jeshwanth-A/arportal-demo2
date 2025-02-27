@@ -9,27 +9,31 @@ export default function AdminPage() {
 
   const BACKEND_URL = "https://arportaldemo2backend-686596926199.us-central1.run.app";
 
-  // Check if user is admin
-  const isAdmin = localStorage.getItem("isAdmin") === "true";
+  // Get token from localStorage
+  const token = localStorage.getItem("token");
 
   useEffect(() => {
-    if (!isAdmin) {
-      navigate("/"); // Redirect non-admin users to home
+    if (!token) {
+      navigate("/"); // Redirect if not logged in
       return;
     }
 
     const fetchUsers = async () => {
       try {
-        const response = await axios.get(`${BACKEND_URL}/all-users`);
+        const response = await axios.get(`${BACKEND_URL}/all-users`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        // Convert users object to an array format for mapping
         setUsers(Object.entries(response.data.users));
       } catch (err) {
         console.error("❌ Fetch Users Error:", err.response || err.message);
-        setError("Failed to fetch users.");
+        setError("Failed to fetch users. You may not be an admin.");
       }
     };
 
     fetchUsers();
-  }, [isAdmin, navigate]);
+  }, [token, navigate]);
 
   return (
     <div className="admin-container">
@@ -40,7 +44,7 @@ export default function AdminPage() {
         <thead>
           <tr>
             <th>Username</th>
-            <th>Password</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -50,7 +54,9 @@ export default function AdminPage() {
             users.map(([username, data], index) => (
               <tr key={index}>
                 <td>{username}</td>
-                <td>{data.password}</td>
+                <td>
+                  <button onClick={() => console.log(`Manage user: ${username}`)}>Manage</button>
+                </td>
               </tr>
             ))
           )}
