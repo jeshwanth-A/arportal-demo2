@@ -170,7 +170,7 @@ def image_to_data_uri(image_bytes: bytes) -> str:
 
 @app.get("/")
 def home():
-    return {"message": "FastAPI with Meshy 3D Integration running!"}
+    return {"message": "FastAPI with Meshy 3D Integration running!."}
 
 ###############################
 #   Run FastAPI Locally       #
